@@ -2,7 +2,7 @@
 
 > Real-time logistics and fleet management dashboard powered by Amazon Aurora DSQL.
 
-FleetPulse is a globally-distributed logistics dashboard built for a Solana hackathon. It demonstrates a **single-cluster-now, multi-region-ready** architecture: the application runs on one Aurora DSQL cluster in `us-east-1` today, but adding an EU cluster tomorrow requires only setting an environment variable — **zero code changes**.
+FleetPulse is a globally-distributed logistics dashboard. It demonstrates a **single-cluster-now, multi-region-ready** architecture: the application runs on one Aurora DSQL cluster in `us-east-1` today, but adding an EU cluster tomorrow requires only setting an environment variable — **zero code changes**.
 
 ## Architecture Overview
 

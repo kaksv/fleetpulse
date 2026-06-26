@@ -10,10 +10,10 @@
 import { AuroraDSQLClient } from '@aws/aurora-dsql-node-postgres-connector';
 
 /* ------------------------------------------------------------------ */
-/*  Schema                                                            */
+/*  Schema — single CREATE TABLE per query (DSQL limitation)          */
 /* ------------------------------------------------------------------ */
 
-const CREATE_TABLES_SQL = `
+const CREATE_DRIVERS_SQL = `
   CREATE TABLE IF NOT EXISTS drivers (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name        TEXT NOT NULL,
@@ -24,10 +24,14 @@ const CREATE_TABLES_SQL = `
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
   );
+`;
 
+const CREATE_SHIPMENTS_SQL = `
   CREATE TABLE IF NOT EXISTS shipments (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    driver_id   UUID REFERENCES drivers(id) ON DELETE SET NULL,
+    -- NOTE: Aurora DSQL does not support FOREIGN KEY constraints.
+    -- Referential integrity is enforced at the application layer.
+    driver_id   UUID,
     origin      TEXT NOT NULL,
     destination TEXT NOT NULL,
     status      TEXT NOT NULL DEFAULT 'pending'
@@ -40,48 +44,94 @@ const CREATE_TABLES_SQL = `
 `;
 
 /* ------------------------------------------------------------------ */
-/*  Seed data (idempotent – only inserts when tables are empty)       */
+/*  Seed helpers — single INSERT per query (DSQL limitation)          */
 /* ------------------------------------------------------------------ */
 
-const SEED_SQL = `
-  DO $$
-  DECLARE
-    driver_count INTEGER;
-  BEGIN
-    SELECT COUNT(*) INTO driver_count FROM drivers;
+const COUNT_DRIVERS_SQL = 'SELECT COUNT(*)::int AS cnt FROM drivers';
+const COUNT_SHIPMENTS_SQL = 'SELECT COUNT(*)::int AS cnt FROM shipments';
 
-    IF driver_count = 0 THEN
-      INSERT INTO drivers (name, email, phone, status) VALUES
-        ('Alice Mbabazi',  'alice.mbabazi@fleetpulse.io',  '+256-700-111-111', 'active'),
-        ('Bob Kato',       'bob.kato@fleetpulse.io',       '+256-700-222-222', 'active'),
-        ('Carol Nambi',    'carol.nambi@fleetpulse.io',    '+256-700-333-333', 'offline'),
-        ('David Ssenyonga','david.ssenyonga@fleetpulse.io','+256-700-444-444', 'active'),
-        ('Eva Nakato',     'eva.nakato@fleetpulse.io',     '+256-700-555-555', 'on_break');
-    END IF;
-  END $$;
-
-  DO $$
-  DECLARE
-    shipment_count INTEGER;
-  BEGIN
-    SELECT COUNT(*) INTO shipment_count FROM shipments;
-
-    IF shipment_count = 0 THEN
-      INSERT INTO shipments (driver_id, origin, destination, status, progress)
-      VALUES
-        ((SELECT id FROM drivers WHERE email = 'alice.mbabazi@fleetpulse.io'),
-         'Kampala, Uganda',        'Nairobi, Kenya',         'in_transit',  65),
-        ((SELECT id FROM drivers WHERE email = 'bob.kato@fleetpulse.io'),
-         'Kampala, Uganda',        'Kigali, Rwanda',         'delivered',   100),
-        ((SELECT id FROM drivers WHERE email = 'david.ssenyonga@fleetpulse.io'),
-         'Mombasa, Kenya',         'Dar es Salaam, Tanzania','in_transit',  30),
-        ((SELECT id FROM drivers WHERE email = 'alice.mbabazi@fleetpulse.io'),
-         'Juba, South Sudan',      'Kampala, Uganda',        'delayed',     45),
-        (NULL,
-         'Nairobi, Kenya',         'Addis Ababa, Ethiopia',  'pending',     0);
-    END IF;
-  END $$;
+const INSERT_DRIVERS_SQL = `
+  INSERT INTO drivers (name, email, phone, status) VALUES
+    ($1, $2, $3, $4)
 `;
+
+interface DriverSeed {
+  name: string;
+  email: string;
+  phone: string;
+  status: string;
+}
+
+const DRIVER_SEEDS: DriverSeed[] = [
+  { name: 'Alice Mbabazi',   email: 'alice.mbabazi@fleetpulse.io',   phone: '+256-700-111-111', status: 'active' },
+  { name: 'Bob Kato',        email: 'bob.kato@fleetpulse.io',        phone: '+256-700-222-222', status: 'active' },
+  { name: 'Carol Nambi',     email: 'carol.nambi@fleetpulse.io',     phone: '+256-700-333-333', status: 'offline' },
+  { name: 'David Ssenyonga', email: 'david.ssenyonga@fleetpulse.io', phone: '+256-700-444-444', status: 'active' },
+  { name: 'Eva Nakato',      email: 'eva.nakato@fleetpulse.io',      phone: '+256-700-555-555', status: 'on_break' },
+];
+
+interface ShipmentSeed {
+  driverEmail: string | null;
+  origin: string;
+  destination: string;
+  status: string;
+  progress: number;
+}
+
+const SHIPMENT_SEEDS: ShipmentSeed[] = [
+  { driverEmail: 'alice.mbabazi@fleetpulse.io',   origin: 'Kampala, Uganda',        destination: 'Nairobi, Kenya',         status: 'in_transit',  progress: 65 },
+  { driverEmail: 'bob.kato@fleetpulse.io',        origin: 'Kampala, Uganda',        destination: 'Kigali, Rwanda',         status: 'delivered',   progress: 100 },
+  { driverEmail: 'david.ssenyonga@fleetpulse.io', origin: 'Mombasa, Kenya',         destination: 'Dar es Salaam, Tanzania', status: 'in_transit',  progress: 30 },
+  { driverEmail: 'alice.mbabazi@fleetpulse.io',   origin: 'Juba, South Sudan',      destination: 'Kampala, Uganda',        status: 'delayed',     progress: 45 },
+  { driverEmail: null,                             origin: 'Nairobi, Kenya',         destination: 'Addis Ababa, Ethiopia',  status: 'pending',     progress: 0 },
+];
+
+/**
+ * Seed drivers one by one. Each row is a separate INSERT so DSQL can execute it.
+ */
+async function seedDrivers(client: AuroraDSQLClient): Promise<void> {
+  const { rows: [{ cnt }] } = await client.query<{ cnt: number }>(COUNT_DRIVERS_SQL);
+  if (cnt > 0) {
+    console.log('⏭️  Drivers already seeded, skipping.');
+    return;
+  }
+
+  for (const d of DRIVER_SEEDS) {
+    await client.query(INSERT_DRIVERS_SQL, [d.name, d.email, d.phone, d.status]);
+  }
+  console.log('✅ Drivers seeded.');
+}
+
+/**
+ * Seed shipments one by one. Driver ID is resolved via subquery for each row.
+ */
+async function seedShipments(client: AuroraDSQLClient): Promise<void> {
+  const { rows: [{ cnt }] } = await client.query<{ cnt: number }>(COUNT_SHIPMENTS_SQL);
+  if (cnt > 0) {
+    console.log('⏭️  Shipments already seeded, skipping.');
+    return;
+  }
+
+  for (const s of SHIPMENT_SEEDS) {
+    if (s.driverEmail) {
+      await client.query(
+        `INSERT INTO shipments (driver_id, origin, destination, status, progress)
+         VALUES (
+           (SELECT id FROM drivers WHERE email = $1),
+           $2, $3, $4, $5
+         )`,
+        [s.driverEmail, s.origin, s.destination, s.status, s.progress],
+      );
+    } else {
+      await client.query(
+        `INSERT INTO shipments (driver_id, origin, destination, status, progress)
+         VALUES (NULL, $1, $2, $3, $4)`,
+        [s.origin, s.destination, s.status, s.progress],
+      );
+    }
+  }
+  console.log('✅ Shipments seeded.');
+}
 
 /* ------------------------------------------------------------------ */
 /*  Main                                                              */
@@ -109,13 +159,21 @@ async function main(): Promise<void> {
     await client.connect();
     console.log('✅ Connected.');
 
-    console.log('📦 Creating tables …');
-    await client.query(CREATE_TABLES_SQL);
-    console.log('✅ Tables ready.');
+    console.log('📦 Creating drivers table …');
+    await client.query(CREATE_DRIVERS_SQL);
+    console.log('✅ Drivers table ready.');
 
-    console.log('🌱 Seeding data …');
-    await client.query(SEED_SQL);
-    console.log('✅ Seed complete.');
+    console.log('📦 Creating shipments table …');
+    await client.query(CREATE_SHIPMENTS_SQL);
+    console.log('✅ Shipments table ready.');
+
+    console.log('🌱 Seeding drivers …');
+    await seedDrivers(client);
+
+    console.log('🌱 Seeding shipments …');
+    await seedShipments(client);
+
+    console.log('🎉 Setup complete.');
   } catch (err) {
     console.error('❌ Setup failed:', err);
     process.exit(1);
