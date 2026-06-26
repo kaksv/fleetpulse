@@ -42,7 +42,10 @@ interface DashboardData {
 /* ------------------------------------------------------------------ */
 
 async function fetchDashboardData(): Promise<DashboardData> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000'
+  // VERCEL_URL is auto-injected by Vercel; fallback to localhost for dev
+  const baseUrl = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'http://localhost:3000'
 
   const [shipmentsRes, driversRes] = await Promise.all([
     fetch(`${baseUrl}/api/shipments`, { cache: 'no-store' }),
