@@ -53,10 +53,11 @@ export function getDbPool(
     // Token duration for IAM auth — defaults to 900s (15 min)
     tokenDurationSecs: Number(process.env.DSQL_TOKEN_DURATION_SECS) || 900,
     // Optimistic concurrency control retry config
+    // NOTE: DSQL connector enforces maxDelayMs ≤ 100
     retry: {
       maxRetries: 3,
-      baseDelayMs: 50,
-      maxDelayMs: 500,
+      baseDelayMs: 10,
+      maxDelayMs: 100,
       jitterFactor: 0.2,
     },
     logger: log,
