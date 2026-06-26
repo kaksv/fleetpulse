@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import {
   LayoutGrid,
   Map,
@@ -14,16 +15,17 @@ import {
 } from 'lucide-react'
 
 const navigation = [
-  { name: 'Dashboard', icon: LayoutGrid, href: '#', active: true },
-  { name: 'Live Map', icon: Map, href: '#' },
-  { name: 'Fleet Management', icon: Truck, href: '#' },
-  { name: 'Shipments', icon: Package, href: '#' },
-  { name: 'Analytics', icon: BarChart3, href: '#' },
-  { name: 'Settings', icon: Settings, href: '#' },
+  { name: 'Dashboard', icon: LayoutGrid, href: '/dashboard' },
+  { name: 'Live Map', icon: Map, href: '/dashboard/live-map' },
+  { name: 'Fleet Management', icon: Truck, href: '/dashboard/fleet-management' },
+  { name: 'Shipments', icon: Package, href: '/dashboard/shipments' },
+  { name: 'Analytics', icon: BarChart3, href: '/dashboard/analytics' },
+  { name: 'Settings', icon: Settings, href: '/dashboard/settings' },
 ]
 
 export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false)
+  const pathname = usePathname()
 
   return (
     <>
@@ -68,13 +70,15 @@ export function Sidebar() {
           <nav className="flex-1 space-y-2">
             {navigation.map((item) => {
               const Icon = item.icon
+              const isActive = pathname === item.href
+
               return (
                 <Link
                   key={item.name}
                   href={item.href}
                   onClick={() => setIsOpen(false)}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                    item.active
+                    isActive
                       ? 'bg-sidebar-accent text-sidebar-foreground'
                       : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
                   }`}
