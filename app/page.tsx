@@ -3,13 +3,14 @@ import { Header } from '@/components/header'
 import { KPICards } from '@/components/kpi-cards'
 import { LiveOperations } from '@/components/live-operations'
 import { ActivityTable } from '@/components/activity-table'
+import { query } from '@/lib/db'
 import { Suspense } from 'react'
 
 /* ------------------------------------------------------------------ */
-/*  Types matching API responses                                       */
+/*  Types matching DB row shapes                                       */
 /* ------------------------------------------------------------------ */
 
-interface Shipment {
+interface ShipmentRow extends Record<string, unknown> {
   id: string
   driver_id: string | null
   driver_name: string | null
@@ -21,7 +22,7 @@ interface Shipment {
   updated_at: string
 }
 
-interface Driver {
+interface DriverRow extends Record<string, unknown> {
   id: string
   name: string
   email: string
@@ -33,32 +34,44 @@ interface Driver {
 }
 
 interface DashboardData {
-  shipments: Shipment[]
-  drivers: Driver[]
+  shipments: ShipmentRow[]
+  drivers: DriverRow[]
 }
 
 /* ------------------------------------------------------------------ */
-/*  Server-side data fetching                                          */
+/*  Server-side data fetching (direct DB — no self HTTP call)          */
 /* ------------------------------------------------------------------ */
 
 async function fetchDashboardData(): Promise<DashboardData> {
-  // VERCEL_URL is auto-injected by Vercel; fallback to localhost for dev
-  const baseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://localhost:3000'
-
-  const [shipmentsRes, driversRes] = await Promise.all([
-    fetch(`${baseUrl}/api/shipments`, { cache: 'no-store' }),
-    fetch(`${baseUrl}/api/drivers`, { cache: 'no-store' }),
-  ])
-
-  if (!shipmentsRes.ok || !driversRes.ok) {
-    throw new Error('Failed to fetch dashboard data')
-  }
-
-  const [shipments, drivers]: [Shipment[], Driver[]] = await Promise.all([
-    shipmentsRes.json(),
-    driversRes.json(),
+  const [shipments, drivers] = await Promise.all([
+    query<ShipmentRow>(
+      `SELECT
+        s.id,
+        s.driver_id,
+        d.name AS driver_name,
+        s.origin,
+        s.destination,
+        s.status,
+        s.progress,
+        s.created_at,
+        s.updated_at
+      FROM shipments s
+      LEFT JOIN drivers d ON d.id = s.driver_id
+      ORDER BY s.created_at DESC`,
+    ),
+    query<DriverRow>(
+      `SELECT
+        d.id,
+        d.name,
+        d.email,
+        d.phone,
+        d.status,
+        (SELECT COUNT(*) FROM shipments s WHERE s.driver_id = d.id AND s.status = 'in_transit') AS active_shipments,
+        d.created_at,
+        d.updated_at
+      FROM drivers d
+      ORDER BY d.name ASC`,
+    ),
   ])
 
   return { shipments, drivers }
@@ -124,25 +137,13 @@ function DashboardError({ error }: { error: Error }) {
         </div>
         <h2 className="text-xl font-bold text-foreground">Failed to load dashboard</h2>
         <p className="text-sm text-muted-foreground">{error.message}</p>
-        <form>
-          <button
-            type="submit"
-            formAction={async () => {
-              'use server'
-              // Trigger a re-fetch
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity text-sm font-medium"
-          >
-            Retry
-          </button>
-        </form>
       </div>
     </div>
   )
 }
 
 /* ------------------------------------------------------------------ */
-/*  Dashboard (Server Component)                                       */
+/*  Dashboard (Server Component — queries DB directly)                 */
 /* ------------------------------------------------------------------ */
 
 export default async function Page() {
