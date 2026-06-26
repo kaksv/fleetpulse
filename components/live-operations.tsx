@@ -2,50 +2,41 @@
 
 import { Cloud, Eye, ToggleLeft, MapPin } from 'lucide-react'
 
-const shipments = [
-  {
-    id: '#SHP-8839',
-    driver: 'Marcus Chen',
-    status: 'On Time',
-    progress: 65,
-    statusColor: 'bg-emerald-500/20 text-emerald-400',
-    badgeColor: 'bg-emerald-500/20 text-emerald-400',
-  },
-  {
-    id: '#SHP-8840',
-    driver: 'Sarah Williams',
-    status: 'On Time',
-    progress: 42,
-    statusColor: 'bg-emerald-500/20 text-emerald-400',
-    badgeColor: 'bg-emerald-500/20 text-emerald-400',
-  },
-  {
-    id: '#SHP-8841',
-    driver: 'James Rodriguez',
-    status: 'Delayed',
-    progress: 28,
-    statusColor: 'bg-amber-500/20 text-amber-400',
-    badgeColor: 'bg-amber-500/20 text-amber-400',
-  },
-  {
-    id: '#SHP-8842',
-    driver: 'Emma Thompson',
-    status: 'On Time',
-    progress: 78,
-    statusColor: 'bg-emerald-500/20 text-emerald-400',
-    badgeColor: 'bg-emerald-500/20 text-emerald-400',
-  },
-  {
-    id: '#SHP-8843',
-    driver: 'David Park',
-    status: 'On Time',
-    progress: 55,
-    statusColor: 'bg-emerald-500/20 text-emerald-400',
-    badgeColor: 'bg-emerald-500/20 text-emerald-400',
-  },
-]
+interface Shipment {
+  id: string
+  driver_id: string | null
+  driver_name: string | null
+  origin: string
+  destination: string
+  status: 'pending' | 'in_transit' | 'delivered' | 'delayed'
+  progress: number
+  created_at: string
+  updated_at: string
+}
 
-export function LiveOperations() {
+interface LiveOperationsProps {
+  shipments: Shipment[]
+}
+
+export function LiveOperations({ shipments }: LiveOperationsProps) {
+  // Only show in-transit and delayed shipments in the live feed
+  const activeShipments = shipments.filter(
+    (s) => s.status === 'in_transit' || s.status === 'delayed',
+  )
+
+  const statusConfig: Record<string, { label: string; color: string; badgeColor: string }> = {
+    in_transit: {
+      label: 'On Time',
+      color: 'bg-emerald-500/20 text-emerald-400',
+      badgeColor: 'bg-emerald-500/20 text-emerald-400',
+    },
+    delayed: {
+      label: 'Delayed',
+      color: 'bg-amber-500/20 text-amber-400',
+      badgeColor: 'bg-amber-500/20 text-amber-400',
+    },
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
       {/* Map Section */}
@@ -66,23 +57,36 @@ export function LiveOperations() {
               <rect width="100%" height="100%" fill="url(#grid)" />
             </svg>
 
-            {/* Map Pings/Markers */}
-            {[
-              { x: '20%', y: '30%', label: 'Truck 01' },
-              { x: '40%', y: '45%', label: 'Truck 02' },
-              { x: '60%', y: '35%', label: 'Truck 03' },
-              { x: '75%', y: '60%', label: 'Truck 04' },
-              { x: '85%', y: '25%', label: 'Truck 05' },
-            ].map((marker, i) => (
-              <div key={i} className="absolute transform -translate-x-1/2 -translate-y-1/2">
-                <div style={{ left: marker.x, top: marker.y }} className="absolute">
-                  {/* Pulsing ring */}
-                  <div className="w-6 h-6 rounded-full border-2 border-emerald-500/50 animate-pulse" />
-                  {/* Center dot */}
-                  <div className="absolute inset-2 w-2 h-2 bg-emerald-500 rounded-full" />
+            {/* Map Pings/Markers — one per active shipment */}
+            {activeShipments.slice(0, 5).map((shipment, i) => {
+              const positions = [
+                { x: '20%', y: '30%' },
+                { x: '40%', y: '45%' },
+                { x: '60%', y: '35%' },
+                { x: '75%', y: '60%' },
+                { x: '85%', y: '25%' },
+              ]
+              const pos = positions[i % positions.length]
+              const isDelayed = shipment.status === 'delayed'
+              return (
+                <div key={shipment.id} className="absolute transform -translate-x-1/2 -translate-y-1/2">
+                  <div style={{ left: pos.x, top: pos.y }} className="absolute">
+                    {/* Pulsing ring */}
+                    <div
+                      className={`w-6 h-6 rounded-full border-2 animate-pulse ${
+                        isDelayed ? 'border-amber-500/50' : 'border-emerald-500/50'
+                      }`}
+                    />
+                    {/* Center dot */}
+                    <div
+                      className={`absolute inset-2 w-2 h-2 rounded-full ${
+                        isDelayed ? 'bg-amber-500' : 'bg-emerald-500'
+                      }`}
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
 
             {/* Map Controls */}
             <div className="absolute top-4 right-4 bg-card/80 backdrop-blur border border-border rounded-lg p-3 space-y-2">
@@ -107,38 +111,53 @@ export function LiveOperations() {
       <div className="rounded-xl border border-border bg-card p-6">
         <h3 className="font-semibold text-foreground mb-4">Active Shipments</h3>
         <div className="space-y-3 max-h-96 overflow-y-auto">
-          {shipments.map((shipment) => (
-            <div
-              key={shipment.id}
-              className="p-4 rounded-lg bg-muted/30 border border-border hover:border-border/80 hover:bg-muted/50 transition-all cursor-pointer"
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <p className="font-mono text-sm font-semibold text-foreground">
-                    {shipment.id}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">{shipment.driver}</p>
+          {activeShipments.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No active shipments
+            </p>
+          ) : (
+            activeShipments.map((shipment) => {
+              const cfg = statusConfig[shipment.status] ?? statusConfig.in_transit
+              return (
+                <div
+                  key={shipment.id}
+                  className="p-4 rounded-lg bg-muted/30 border border-border hover:border-border/80 hover:bg-muted/50 transition-all cursor-pointer"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="font-mono text-sm font-semibold text-foreground">
+                        {shipment.id.slice(0, 8)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {shipment.driver_name ?? 'Unassigned'}
+                      </p>
+                    </div>
+                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${cfg.badgeColor}`}>
+                      {cfg.label}
+                    </span>
+                  </div>
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-muted-foreground">In Transit</span>
+                      <span className="text-xs font-semibold text-foreground">
+                        {shipment.progress}%
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full bg-gradient-to-r ${
+                          shipment.status === 'delayed'
+                            ? 'from-amber-500 to-orange-600'
+                            : 'from-emerald-500 to-teal-600'
+                        }`}
+                        style={{ width: `${shipment.progress}%` }}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <span className={`text-xs font-semibold px-2 py-1 rounded-full ${shipment.badgeColor}`}>
-                  {shipment.status}
-                </span>
-              </div>
-              <div className="mt-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-muted-foreground">In Transit</span>
-                  <span className="text-xs font-semibold text-foreground">
-                    {shipment.progress}%
-                  </span>
-                </div>
-                <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-emerald-500 to-teal-600"
-                    style={{ width: `${shipment.progress}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
+              )
+            })
+          )}
         </div>
         <button className="w-full mt-4 px-3 py-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors text-sm font-medium text-foreground">
           View All

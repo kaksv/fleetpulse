@@ -2,46 +2,82 @@
 
 import { Truck, CheckCircle, AlertTriangle, Activity, TrendingUp, TrendingDown } from 'lucide-react'
 
-const metrics = [
-  {
-    label: 'Active Drivers',
-    value: '1,284',
-    trend: '+4.5%',
-    isPositive: true,
-    icon: Truck,
-    color: 'from-emerald-500/20 to-teal-600/20',
-    iconColor: 'text-emerald-500',
-  },
-  {
-    label: 'On-Time Deliveries',
-    value: '94.2%',
-    trend: '+1.2%',
-    isPositive: true,
-    icon: CheckCircle,
-    color: 'from-blue-500/20 to-cyan-600/20',
-    iconColor: 'text-blue-500',
-  },
-  {
-    label: 'Delayed Shipments',
-    value: '42',
-    trend: '-8%',
-    isPositive: true,
-    icon: AlertTriangle,
-    color: 'from-orange-500/20 to-amber-600/20',
-    iconColor: 'text-amber-500',
-  },
-  {
-    label: 'Fleet Utilization',
-    value: '87%',
-    trend: '+2.1%',
-    isPositive: true,
-    icon: Activity,
-    color: 'from-purple-500/20 to-pink-600/20',
-    iconColor: 'text-purple-500',
-  },
-]
+interface Shipment {
+  id: string
+  driver_id: string | null
+  driver_name: string | null
+  origin: string
+  destination: string
+  status: 'pending' | 'in_transit' | 'delivered' | 'delayed'
+  progress: number
+  created_at: string
+  updated_at: string
+}
 
-export function KPICards() {
+interface Driver {
+  id: string
+  name: string
+  email: string
+  phone: string
+  status: 'active' | 'offline' | 'on_break'
+  active_shipments: number
+  created_at: string
+  updated_at: string
+}
+
+interface KPICardsProps {
+  shipments: Shipment[]
+  drivers: Driver[]
+}
+
+export function KPICards({ shipments, drivers }: KPICardsProps) {
+  const activeDrivers = drivers.filter((d) => d.status === 'active').length
+  const totalDeliveries = shipments.length
+  const onTime = shipments.filter((s) => s.status === 'delivered').length
+  const onTimePct = totalDeliveries > 0 ? Math.round((onTime / totalDeliveries) * 1000) / 10 : 0
+  const delayed = shipments.filter((s) => s.status === 'delayed').length
+  const activeWithShipments = drivers.filter((d) => d.active_shipments > 0).length
+  const utilization = drivers.length > 0 ? Math.round((activeWithShipments / drivers.length) * 100) : 0
+
+  const metrics = [
+    {
+      label: 'Active Drivers',
+      value: activeDrivers.toLocaleString(),
+      trend: `out of ${drivers.length} total`,
+      isPositive: true,
+      icon: Truck,
+      color: 'from-emerald-500/20 to-teal-600/20',
+      iconColor: 'text-emerald-500',
+    },
+    {
+      label: 'On-Time Deliveries',
+      value: `${onTimePct}%`,
+      trend: `${onTime} of ${totalDeliveries} shipments`,
+      isPositive: true,
+      icon: CheckCircle,
+      color: 'from-blue-500/20 to-cyan-600/20',
+      iconColor: 'text-blue-500',
+    },
+    {
+      label: 'Delayed Shipments',
+      value: delayed.toString(),
+      trend: `${delayed > 0 ? '+' : ''}${delayed} delayed`,
+      isPositive: delayed === 0,
+      icon: AlertTriangle,
+      color: 'from-orange-500/20 to-amber-600/20',
+      iconColor: 'text-amber-500',
+    },
+    {
+      label: 'Fleet Utilization',
+      value: `${utilization}%`,
+      trend: `${activeWithShipments} drivers on route`,
+      isPositive: utilization >= 50,
+      icon: Activity,
+      color: 'from-purple-500/20 to-pink-600/20',
+      iconColor: 'text-purple-500',
+    },
+  ]
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       {metrics.map((metric) => {

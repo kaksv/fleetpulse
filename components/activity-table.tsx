@@ -3,61 +3,47 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 
-const activities = [
-  {
-    id: '#SHP-8826',
-    origin: 'Los Angeles, CA',
-    destination: 'Phoenix, AZ',
-    driver: 'Marcus Chen',
-    status: 'On Time',
-    updated: '2 hours ago',
-    statusColor: 'bg-emerald-500/10 text-emerald-400',
-  },
-  {
-    id: '#SHP-8827',
-    origin: 'Chicago, IL',
-    destination: 'Detroit, MI',
-    driver: 'Sarah Williams',
-    status: 'On Time',
-    updated: '45 minutes ago',
-    statusColor: 'bg-emerald-500/10 text-emerald-400',
-  },
-  {
-    id: '#SHP-8828',
-    origin: 'Houston, TX',
-    destination: 'Dallas, TX',
-    driver: 'James Rodriguez',
-    status: 'Delayed',
-    updated: '1 hour ago',
-    statusColor: 'bg-amber-500/10 text-amber-400',
-  },
-  {
-    id: '#SHP-8829',
-    origin: 'New York, NY',
-    destination: 'Boston, MA',
-    driver: 'Emma Thompson',
-    status: 'On Time',
-    updated: '3 hours ago',
-    statusColor: 'bg-emerald-500/10 text-emerald-400',
-  },
-  {
-    id: '#SHP-8830',
-    origin: 'Seattle, WA',
-    destination: 'Portland, OR',
-    driver: 'David Park',
-    status: 'On Time',
-    updated: '5 minutes ago',
-    statusColor: 'bg-emerald-500/10 text-emerald-400',
-  },
-]
+interface Shipment {
+  id: string
+  driver_id: string | null
+  driver_name: string | null
+  origin: string
+  destination: string
+  status: 'pending' | 'in_transit' | 'delivered' | 'delayed'
+  progress: number
+  created_at: string
+  updated_at: string
+}
 
-export function ActivityTable() {
+interface ActivityTableProps {
+  shipments: Shipment[]
+}
+
+const STATUS_MAP: Record<string, { label: string; color: string }> = {
+  in_transit: { label: 'In Transit', color: 'bg-emerald-500/10 text-emerald-400' },
+  delivered: { label: 'Delivered', color: 'bg-blue-500/10 text-blue-400' },
+  delayed: { label: 'Delayed', color: 'bg-amber-500/10 text-amber-400' },
+  pending: { label: 'Pending', color: 'bg-muted text-muted-foreground' },
+}
+
+function timeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diffMs / 60_000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`
+  const days = Math.floor(hrs / 24)
+  return `${days} day${days === 1 ? '' : 's'} ago`
+}
+
+export function ActivityTable({ shipments }: ActivityTableProps) {
   const [page, setPage] = useState(1)
   const itemsPerPage = 5
-  const totalPages = Math.ceil(activities.length / itemsPerPage)
+  const totalPages = Math.ceil(shipments.length / itemsPerPage) || 1
 
   const startIdx = (page - 1) * itemsPerPage
-  const paginatedActivities = activities.slice(startIdx, startIdx + itemsPerPage)
+  const paginatedShipments = shipments.slice(startIdx, startIdx + itemsPerPage)
 
   return (
     <div className="rounded-xl border border-border bg-card p-6">
@@ -86,32 +72,47 @@ export function ActivityTable() {
             </tr>
           </thead>
           <tbody>
-            {paginatedActivities.map((activity) => (
-              <tr
-                key={activity.id}
-                className="border-b border-border/50 hover:bg-muted/50 transition-colors cursor-pointer"
-              >
-                <td className="py-4 px-4">
-                  <span className="font-mono font-semibold text-foreground">
-                    {activity.id}
-                  </span>
+            {paginatedShipments.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                  No shipments found
                 </td>
-                <td className="py-4 px-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-foreground">{activity.origin}</span>
-                    <span className="text-muted-foreground">→</span>
-                    <span className="text-foreground">{activity.destination}</span>
-                  </div>
-                </td>
-                <td className="py-4 px-4 text-foreground">{activity.driver}</td>
-                <td className="py-4 px-4">
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${activity.statusColor}`}>
-                    {activity.status}
-                  </span>
-                </td>
-                <td className="py-4 px-4 text-muted-foreground">{activity.updated}</td>
               </tr>
-            ))}
+            ) : (
+              paginatedShipments.map((shipment) => {
+                const cfg = STATUS_MAP[shipment.status] ?? STATUS_MAP.pending
+                return (
+                  <tr
+                    key={shipment.id}
+                    className="border-b border-border/50 hover:bg-muted/50 transition-colors cursor-pointer"
+                  >
+                    <td className="py-4 px-4">
+                      <span className="font-mono font-semibold text-foreground">
+                        {shipment.id.slice(0, 8)}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-foreground">{shipment.origin}</span>
+                        <span className="text-muted-foreground">→</span>
+                        <span className="text-foreground">{shipment.destination}</span>
+                      </div>
+                    </td>
+                    <td className="py-4 px-4 text-foreground">
+                      {shipment.driver_name ?? 'Unassigned'}
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${cfg.color}`}>
+                        {cfg.label}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-muted-foreground">
+                      {timeAgo(shipment.updated_at)}
+                    </td>
+                  </tr>
+                )
+              })
+            )}
           </tbody>
         </table>
       </div>
@@ -119,7 +120,7 @@ export function ActivityTable() {
       {/* Pagination */}
       <div className="mt-6 flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
-          Page {page} of {totalPages} • {activities.length} total items
+          Page {page} of {totalPages} • {shipments.length} total items
         </span>
         <div className="flex items-center gap-2">
           <button
