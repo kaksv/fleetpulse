@@ -1,6 +1,8 @@
 'use client'
 
-import { Cloud, Eye, ToggleLeft, MapPin } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Cloud, Eye } from 'lucide-react'
+import { NewShipmentModal } from '@/components/new-shipment-modal'
 
 interface Shipment {
   id: string
@@ -14,11 +16,37 @@ interface Shipment {
   updated_at: string
 }
 
+interface Driver {
+  id: string
+  name: string
+  email: string
+  phone: string
+  status: 'active' | 'offline' | 'on_break'
+  active_shipments: number
+  created_at: string
+  updated_at: string
+}
+
 interface LiveOperationsProps {
   shipments: Shipment[]
 }
 
 export function LiveOperations({ shipments }: LiveOperationsProps) {
+  const [showModal, setShowModal] = useState(false)
+  const [drivers, setDrivers] = useState<Driver[]>([])
+
+  useEffect(() => {
+    fetch('/api/drivers')
+      .then((res) => res.json())
+      .then((data) => setDrivers(data))
+      .catch(() => {})
+  }, [])
+
+  const handleCreate = () => {
+    setShowModal(false)
+    window.location.reload()
+  }
+
   // Only show in-transit and delayed shipments in the live feed
   const activeShipments = shipments.filter(
     (s) => s.status === 'in_transit' || s.status === 'delayed',
@@ -68,20 +96,35 @@ export function LiveOperations({ shipments }: LiveOperationsProps) {
               ]
               const pos = positions[i % positions.length]
               const isDelayed = shipment.status === 'delayed'
+              const pinColor = isDelayed ? '#f59e0b' : '#10b981'
               return (
-                <div key={shipment.id} className="absolute transform -translate-x-1/2 -translate-y-1/2">
-                  <div style={{ left: pos.x, top: pos.y }} className="absolute">
+                <div key={shipment.id} className="absolute transform -translate-x-1/2 -translate-y-full">
+                  <div style={{ left: pos.x, top: pos.y }} className="relative">
+                    {/* Map pin SVG */}
+                    <svg width="32" height="42" viewBox="0 0 32 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <defs>
+                        <filter id={`shadow-${shipment.id}`} x="-4" y="-4" width="40" height="50">
+                          <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#000" floodOpacity="0.4"/>
+                        </filter>
+                      </defs>
+                      <path
+                        d="M16 40C16 40 2 22 2 14C2 6.268 8.268 0 16 0C23.732 0 30 6.268 30 14C30 22 16 40 16 40Z"
+                        fill={pinColor}
+                        stroke="#fff"
+                        strokeWidth="2"
+                        filter={`url(#shadow-${shipment.id})`}
+                      />
+                      <circle cx="16" cy="13" r="6" fill="#fff" opacity="0.9" />
+                      <text x="16" y="17" textAnchor="middle" fontSize="10" fontWeight="bold" fill={pinColor}>
+                        {String(i + 1).padStart(2, '0')}
+                      </text>
+                    </svg>
                     {/* Pulsing ring */}
                     <div
-                      className={`w-6 h-6 rounded-full border-2 animate-pulse ${
-                        isDelayed ? 'border-amber-500/50' : 'border-emerald-500/50'
-                      }`}
-                    />
-                    {/* Center dot */}
-                    <div
-                      className={`absolute inset-2 w-2 h-2 rounded-full ${
+                      className={`absolute top-1 left-1 w-8 h-8 rounded-full animate-ping opacity-30 ${
                         isDelayed ? 'bg-amber-500' : 'bg-emerald-500'
                       }`}
+                      style={{ animationDuration: '2s' }}
                     />
                   </div>
                 </div>
@@ -159,9 +202,23 @@ export function LiveOperations({ shipments }: LiveOperationsProps) {
             })
           )}
         </div>
-        <button className="w-full mt-4 px-3 py-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors text-sm font-medium text-foreground">
+        <button
+          onClick={() => setShowModal(true)}
+          className="w-full mt-4 px-3 py-2 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity text-sm font-medium"
+        >
+          + New Shipment
+        </button>
+        <button className="w-full mt-2 px-3 py-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors text-sm font-medium text-foreground">
           View All
         </button>
+
+        {showModal && (
+          <NewShipmentModal
+            drivers={drivers}
+            onClose={() => setShowModal(false)}
+            onSubmit={handleCreate}
+          />
+        )}
       </div>
     </div>
   )
