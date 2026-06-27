@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet'
 import L from 'leaflet'
 
+// Leaflet CSS is required for tiles and controls to render
+import 'leaflet/dist/leaflet.css'
+
 interface Shipment {
   id: string
   driver_id: string | null
