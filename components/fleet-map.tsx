@@ -81,12 +81,17 @@ function destIcon() {
 /*  Auto-fit bounds                                                    */
 /* ------------------------------------------------------------------ */
 
-function FitBounds({ points }: { points: [number, number][] }) {
+function FitBounds({ points, smooth = false }: { points: [number, number][]; smooth?: boolean }) {
   const map = useMap()
   useEffect(() => {
     if (!points.length) return
-    map.fitBounds(L.latLngBounds(points), { padding: [80, 80], maxZoom: 5 })
-  }, [points, map])
+    map.fitBounds(L.latLngBounds(points), {
+      padding: [80, 80],
+      maxZoom: 5,
+      animate: smooth,
+      duration: smooth ? 1.5 : undefined,
+    })
+  }, [points, map, smooth])
   return null
 }
 
@@ -130,67 +135,69 @@ export function FleetMap({ shipments }: FleetMapProps) {
     : [0.3476, 32.5825]
 
   return (
-    <MapContainer
-      center={center}
-      zoom={2}
-      className="w-full h-full z-0"
-      zoomControl={false}
-      attributionControl={false}
-    >
-      <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        subdomains={['a', 'b', 'c', 'd']}
-      />
-      <FitBounds points={markerPoints} />
-
-      {/* Route lines */}
-      {polylines.map((line, idx) => (
-        <Polyline
-          key={`route-${idx}`}
-          positions={line}
-          pathOptions={{
-            color: '#3b82f6',
-            weight: 2,
-            opacity: 0.6,
-            dashArray: '6 6',
-          }}
+    <div className="w-full h-[420px] rounded-xl border border-border overflow-hidden bg-slate-950">
+      <MapContainer
+        center={center}
+        zoom={2}
+        className="w-full h-full z-0"
+        zoomControl={false}
+        attributionControl={false}
+      >
+        <TileLayer
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          subdomains={['a', 'b', 'c', 'd']}
         />
-      ))}
+        <FitBounds points={markerPoints} smooth />
 
-      {/* Origin markers */}
-      {active.map((s) => {
-        const origin = toCoord(s.origin)
-        if (!origin) return null
-        const color = STATUS_COLORS[s.status] ?? STATUS_COLORS.pending
-        return (
-          <Marker key={`o-${s.id}`} position={origin} icon={pinIcon(color)}>
-            <Popup>
-              <div className="text-xs space-y-1 min-w-[140px]">
-                <p className="font-semibold text-foreground">🚚 {s.driver_name ?? 'Unassigned'}</p>
-                <p className="text-muted-foreground">From: {s.origin}</p>
-                <p className="text-muted-foreground">To: {s.destination}</p>
-                <p className="text-emerald-400 font-semibold">{s.progress}% complete</p>
-              </div>
-            </Popup>
-          </Marker>
-        )
-      })}
+        {/* Route lines */}
+        {polylines.map((line, idx) => (
+          <Polyline
+            key={`route-${idx}`}
+            positions={line}
+            pathOptions={{
+              color: '#3b82f6',
+              weight: 2,
+              opacity: 0.6,
+              dashArray: '6 6',
+            }}
+          />
+        ))}
 
-      {/* Destination markers */}
-      {active.map((s) => {
-        const dest = toCoord(s.destination)
-        if (!dest) return null
-        return (
-          <Marker key={`d-${s.id}`} position={dest} icon={destIcon()}>
-            <Popup>
-              <div className="text-xs space-y-1 min-w-[120px]">
-                <p className="font-semibold text-blue-500">🏁 Destination</p>
-                <p className="text-foreground">{s.destination}</p>
-              </div>
-            </Popup>
-          </Marker>
-        )
-      })}
-    </MapContainer>
+        {/* Origin markers */}
+        {active.map((s) => {
+          const origin = toCoord(s.origin)
+          if (!origin) return null
+          const color = STATUS_COLORS[s.status] ?? STATUS_COLORS.pending
+          return (
+            <Marker key={`o-${s.id}`} position={origin} icon={pinIcon(color)}>
+              <Popup>
+                <div className="text-xs space-y-1 min-w-[140px]">
+                  <p className="font-semibold text-foreground">🚚 {s.driver_name ?? 'Unassigned'}</p>
+                  <p className="text-muted-foreground">From: {s.origin}</p>
+                  <p className="text-muted-foreground">To: {s.destination}</p>
+                  <p className="text-emerald-400 font-semibold">{s.progress}% complete</p>
+                </div>
+              </Popup>
+            </Marker>
+          )
+        })}
+
+        {/* Destination markers */}
+        {active.map((s) => {
+          const dest = toCoord(s.destination)
+          if (!dest) return null
+          return (
+            <Marker key={`d-${s.id}`} position={dest} icon={destIcon()}>
+              <Popup>
+                <div className="text-xs space-y-1 min-w-[120px]">
+                  <p className="font-semibold text-blue-500">🏁 Destination</p>
+                  <p className="text-foreground">{s.destination}</p>
+                </div>
+              </Popup>
+            </Marker>
+          )
+        })}
+      </MapContainer>
+    </div>
   )
 }

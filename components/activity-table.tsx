@@ -1,7 +1,8 @@
 'use client'
 
-import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
 import { useState } from 'react'
+import { UpdateShipmentModal } from '@/components/update-shipment-modal'
 
 interface Shipment {
   id: string
@@ -18,6 +19,7 @@ interface Shipment {
 interface ActivityTableProps {
   shipments: Shipment[]
   onDelete?: (id: string) => Promise<void>
+  onUpdate?: (id: string, patch: Partial<Shipment>) => void
 }
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
@@ -38,8 +40,9 @@ function timeAgo(iso: string): string {
   return `${days} day${days === 1 ? '' : 's'} ago`
 }
 
-export function ActivityTable({ shipments, onDelete }: ActivityTableProps) {
+export function ActivityTable({ shipments, onDelete, onUpdate }: ActivityTableProps) {
   const [page, setPage] = useState(1)
+  const [editing, setEditing] = useState<Shipment | null>(null)
   const itemsPerPage = 5
   const totalPages = Math.ceil(shipments.length / itemsPerPage) || 1
   const colSpan = onDelete ? 6 : 5
@@ -114,20 +117,36 @@ export function ActivityTable({ shipments, onDelete }: ActivityTableProps) {
                     <td className="py-4 px-4 text-muted-foreground">
                       {timeAgo(shipment.updated_at)}
                     </td>
-                    {onDelete && (
+                    {(onDelete || onUpdate) && (
                       <td className="py-4 px-4">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (confirm('Delete this shipment?')) {
-                              onDelete(shipment.id)
-                            }
-                          }}
-                          className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
-                          title="Delete shipment"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          {onUpdate && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setEditing(shipment)
+                              }}
+                              className="p-1.5 rounded hover:bg-blue-500/10 text-muted-foreground hover:text-blue-500 transition-colors"
+                              title="Edit shipment"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                          )}
+                          {onDelete && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (confirm('Delete this shipment?')) {
+                                  onDelete(shipment.id)
+                                }
+                              }}
+                              className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
+                              title="Delete shipment"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -161,6 +180,16 @@ export function ActivityTable({ shipments, onDelete }: ActivityTableProps) {
           </button>
         </div>
       </div>
+      {editing && onUpdate && (
+        <UpdateShipmentModal
+          shipment={editing}
+          onClose={() => setEditing(null)}
+          onUpdate={(patch) => {
+            onUpdate(editing.id, patch)
+            setEditing(null)
+          }}
+        />
+      )}
     </div>
   )
 }

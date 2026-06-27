@@ -92,6 +92,24 @@ export function DashboardClient() {
   if (loading) return <DashboardSkeletonInner />
   if (error) return <DashboardError error={error} onRetry={fetchData} />
 
+  const handleUpdate = async (id: string, patch: Partial<Shipment>) => {
+    const res = await fetch(`/api/shipments/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.NEXT_PUBLIC_API_KEY ?? 'fleetpulse2024',
+      },
+      body: JSON.stringify(patch),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      toast(data.error || 'Failed to update shipment', 'error')
+      return
+    }
+    toast('Shipment updated', 'success')
+    await fetchData()
+  }
+
   return (
     <div className="animate-fade-in">
       <div className="flex items-center justify-between mb-4">
@@ -106,7 +124,7 @@ export function DashboardClient() {
         </div>
         <LiveOperations shipments={shipments} refetch={fetchData} />
       </div>
-      <ActivityTable shipments={shipments} onDelete={handleDelete} />
+      <ActivityTable shipments={shipments} onDelete={handleDelete} onUpdate={handleUpdate} />
     </div>
   )
 }
