@@ -35,8 +35,8 @@ const CITY_COORDS: Record<string, [number, number]> = {
   'accra, ghana':          [5.6037, -0.1870],
 }
 
-function toCoord(name: string): [number, number] {
-  return CITY_COORDS[name.toLowerCase().trim()] ?? [20, 0]
+function toCoord(name: string): [number, number] | null {
+  return CITY_COORDS[name.toLowerCase().trim()] ?? null
 }
 
 /* ------------------------------------------------------------------ */
@@ -119,7 +119,7 @@ export function FleetMap({ shipments }: FleetMapProps) {
   active.forEach((s) => {
     const o = toCoord(s.origin)
     const d = toCoord(s.destination)
-    if ((o[0] !== 0 || o[1] !== 0) && (d[0] !== 0 || d[1] !== 0)) {
+    if (o && d) {
       polylines.push([o, d])
       markerPoints.push(o, d)
     }
@@ -160,7 +160,7 @@ export function FleetMap({ shipments }: FleetMapProps) {
       {/* Origin markers */}
       {active.map((s) => {
         const origin = toCoord(s.origin)
-        if (origin[0] === 0 && origin[1] === 0) return null
+        if (!origin) return null
         const color = STATUS_COLORS[s.status] ?? STATUS_COLORS.pending
         return (
           <Marker key={`o-${s.id}`} position={origin} icon={pinIcon(color)}>
@@ -179,7 +179,7 @@ export function FleetMap({ shipments }: FleetMapProps) {
       {/* Destination markers */}
       {active.map((s) => {
         const dest = toCoord(s.destination)
-        if (dest[0] === 0 && dest[1] === 0) return null
+        if (!dest) return null
         return (
           <Marker key={`d-${s.id}`} position={dest} icon={destIcon()}>
             <Popup>

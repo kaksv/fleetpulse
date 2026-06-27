@@ -37,7 +37,10 @@ export function NewShipmentModal({ drivers, onClose, onSubmit }: NewShipmentModa
     try {
       const res = await fetch('/api/shipments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.NEXT_PUBLIC_API_KEY ?? 'fleetpulse2024',
+        },
         body: JSON.stringify(formData),
       })
 

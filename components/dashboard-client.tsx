@@ -45,7 +45,7 @@ export function DashboardClient() {
   async function handleDelete(id: string) {
     const res = await fetch(`/api/shipments/${id}`, {
       method: 'DELETE',
-      headers: { 'x-api-key': process.env.NEXT_PUBLIC_API_KEY ?? '' },
+      headers: { 'x-api-key': process.env.NEXT_PUBLIC_API_KEY ?? 'fleetpulse2024' },
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
