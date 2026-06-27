@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { KPICards } from '@/components/kpi-cards'
 import { LiveOperations } from '@/components/live-operations'
 import { ActivityTable } from '@/components/activity-table'
-import { FleetMap } from '@/components/fleet-map'
 import { useToast } from '@/components/toast'
 
 interface Shipment {
@@ -96,12 +95,7 @@ export function DashboardClient() {
         </p>
       </div>
       <KPICards shipments={shipments} drivers={drivers} />
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <div className="lg:col-span-2">
-          <FleetMap shipments={shipments} />
-        </div>
-        <LiveOperations shipments={shipments} />
-      </div>
+      <LiveOperations shipments={shipments} />
       <ActivityTable shipments={shipments} onDelete={handleDelete} />
     </div>
   )
