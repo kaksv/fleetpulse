@@ -3,6 +3,17 @@ import { headers } from 'next/headers';
 import { query, getDbPool } from '@/lib/db';
 
 /* ------------------------------------------------------------------ */
+/*  CORS — mirrors the env pattern already used in the PATCH route     */
+/* ------------------------------------------------------------------ */
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin':  process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Key',
+  'Access-Control-Max-Age':      '86400',
+};
+
+/* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -24,16 +35,23 @@ interface CreateShipmentBody {
   destination: string;
 }
 
+function isValidApiKey(raw: string | null): boolean {
+  if (!raw) return false
+  const allowed = (process.env.API_KEYS ?? process.env.API_KEY ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+  return allowed.length === 0 || allowed.includes(raw)
+}
+
+function badMethod(method: string) {
+  return NextResponse.json({ error: `Method ${method} not allowed` }, { status: 405, headers: corsHeaders })
+}
+
 /* ------------------------------------------------------------------ */
 /*  GET /api/shipments — List all shipments with driver names          */
 /* ------------------------------------------------------------------ */
 
-/**
- * GET /api/shipments
- *
- * Returns all shipments joined with the driver name.
- * Supports multi-region via the `x-dsql-region` header set by middleware.
- */
 export async function GET(): Promise<NextResponse> {
   try {
     const headersList = await headers();
@@ -57,12 +75,12 @@ export async function GET(): Promise<NextResponse> {
 
     const rows = await query<ShipmentRow>(sql, [], region);
 
-    return NextResponse.json(rows, { status: 200 });
+    return NextResponse.json(rows, { status: 200, headers: corsHeaders });
   } catch (error) {
     console.error('GET /api/shipments failed:', error);
     return NextResponse.json(
       { error: 'Failed to fetch shipments' },
-      { status: 500 },
+      { status: 500, headers: corsHeaders },
     );
   }
 }
@@ -71,40 +89,27 @@ export async function GET(): Promise<NextResponse> {
 /*  POST /api/shipments — Create a new shipment (with OCC retry)      */
 /* ------------------------------------------------------------------ */
 
-/**
- * POST /api/shipments
- *
- * Creates a new shipment using `pool.transaction()` for automatic OCC
- * retry handling. Returns the created row with a 201 status.
- *
- * Body: { driver_id: string, origin: string, destination: string }
- */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const headersList = await headers();
-    const region = headersList.get('x-dsql-region') ?? 'us';
+    const headersList = await headers()
+    const region = headersList.get('x-dsql-region') ?? 'us'
+
+    // Auth required for writes
+    const apiKey = request.headers.get('x-api-key') ?? request.headers.get('authorization')?.replace('Bearer ', '') ?? ''
+    if (!isValidApiKey(apiKey)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders })
+    }
 
     const body: CreateShipmentBody = await request.json();
 
-    // ── Validation ────────────────────────────────────────────────
     if (!body.driver_id || !body.origin || !body.destination) {
       return NextResponse.json(
-        {
-          error:
-            'Missing required fields: driver_id, origin, destination',
-        },
-        { status: 400 },
+        { error: 'Missing required fields: driver_id, origin, destination' },
+        { status: 400, headers: corsHeaders },
       );
     }
 
-    if (typeof body.origin !== 'string' || typeof body.destination !== 'string') {
-      return NextResponse.json(
-        { error: 'origin and destination must be strings' },
-        { status: 400 },
-      );
-    }
-
-    // ── Insert via OCC-safe transaction ───────────────────────────
+    // Insert via OCC-safe transaction
     const pool = getDbPool(region);
     const rows = await pool.transaction<ShipmentRow[]>(async (client) => {
       const result = await client.query<ShipmentRow>(
@@ -125,12 +130,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return result.rows;
     });
 
-    return NextResponse.json(rows[0], { status: 201 });
+    return NextResponse.json(rows[0], { status: 201, headers: corsHeaders });
   } catch (error) {
     console.error('POST /api/shipments failed:', error);
     return NextResponse.json(
       { error: 'Failed to create shipment' },
-      { status: 500 },
+      { status: 500, headers: corsHeaders },
     );
   }
+}
+
+export function OPTIONS() {
+  return new Response(null, { status: 204, headers: corsHeaders })
 }

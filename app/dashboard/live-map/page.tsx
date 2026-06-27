@@ -1,4 +1,5 @@
 import { LiveOperations } from '@/components/live-operations'
+import { FleetMap } from '@/components/fleet-map'
 import { query } from '@/lib/db'
 
 interface ShipmentRow extends Record<string, unknown> {
@@ -28,7 +29,12 @@ export default async function LiveMapPage() {
     <main className="flex-1 p-6 overflow-auto">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-2xl font-bold text-foreground mb-6">Live Map</h1>
-        <LiveOperations shipments={shipments} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <div className="lg:col-span-2">
+            <FleetMap shipments={shipments} />
+          </div>
+          <LiveOperations shipments={shipments} />
+        </div>
       </div>
     </main>
   )

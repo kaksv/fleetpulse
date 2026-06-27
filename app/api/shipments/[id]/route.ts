@@ -3,6 +3,17 @@ import { headers } from 'next/headers';
 import { query, getDbPool } from '@/lib/db';
 
 /* ------------------------------------------------------------------ */
+/*  CORS                                                               */
+/* ------------------------------------------------------------------ */
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin':  process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Key',
+  'Access-Control-Max-Age':      '86400',
+};
+
+/* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -21,6 +32,15 @@ interface ShipmentRow extends Record<string, unknown> {
 interface PatchShipmentBody {
   status?: 'pending' | 'in_transit' | 'delivered' | 'delayed';
   progress?: number;
+}
+
+function isValidApiKey(raw: string | null): boolean {
+  if (!raw) return false
+  const allowed = (process.env.API_KEYS ?? process.env.API_KEY ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+  return allowed.length === 0 || allowed.includes(raw)
 }
 
 /* ------------------------------------------------------------------ */
@@ -47,36 +67,42 @@ export async function PATCH(
 
     const body: PatchShipmentBody = await request.json();
 
-    // ── Ensure at least one field is provided ─────────────────────
+    // ── Auth required for writes ────────────────────────────────────
+    const apiKey = request.headers.get('x-api-key') ?? request.headers.get('authorization')?.replace('Bearer ', '') ?? ''
+    if (!isValidApiKey(apiKey)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders })
+    }
+
+    // ── Ensure at least one field is provided ──────────────────────
     if (body.status === undefined && body.progress === undefined) {
       return NextResponse.json(
         { error: 'At least one of status or progress must be provided' },
-        { status: 400 },
+        { status: 400, headers: corsHeaders },
       );
     }
 
-    // ── Validate status if provided ───────────────────────────────
+    // ── Validate status if provided ────────────────────────────────
     const validStatuses = ['pending', 'in_transit', 'delivered', 'delayed'] as const;
     if (body.status && !validStatuses.includes(body.status as typeof validStatuses[number])) {
       return NextResponse.json(
         {
           error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
         },
-        { status: 400 },
+        { status: 400, headers: corsHeaders },
       );
     }
 
-    // ── Validate progress if provided ────────────────────────────
+    // ── Validate progress if provided ──────────────────────────────
     if (body.progress !== undefined) {
       if (typeof body.progress !== 'number' || body.progress < 0 || body.progress > 100) {
         return NextResponse.json(
           { error: 'progress must be a number between 0 and 100' },
-          { status: 400 },
+          { status: 400, headers: corsHeaders },
         );
       }
     }
 
-    // ── Build dynamic UPDATE query ───────────────────────────────
+    // ── Build dynamic UPDATE query ─────────────────────────────────
     const setClauses: string[] = [];
     const values: unknown[] = [];
     let paramIndex = 1;
@@ -111,7 +137,7 @@ export async function PATCH(
         updated_at
     `;
 
-    // ── Update via OCC-safe transaction ──────────────────────────
+    // ── Update via OCC-safe transaction ────────────────────────────
     const pool = getDbPool(region);
     const rows = await pool.transaction<ShipmentRow[]>(async (client) => {
       const result = await client.query<ShipmentRow>(sql, values);
@@ -121,16 +147,16 @@ export async function PATCH(
     if (rows.length === 0) {
       return NextResponse.json(
         { error: 'Shipment not found' },
-        { status: 404 },
+        { status: 404, headers: corsHeaders },
       );
     }
 
-    return NextResponse.json(rows[0], { status: 200 });
+    return NextResponse.json(rows[0], { status: 200, headers: corsHeaders });
   } catch (error) {
     console.error('PATCH /api/shipments/[id] failed:', error);
     return NextResponse.json(
       { error: 'Failed to update shipment' },
-      { status: 500 },
+      { status: 500, headers: corsHeaders },
     );
   }
 }
@@ -151,6 +177,13 @@ export async function DELETE(
   try {
     const headersList = await headers();
     const region = headersList.get('x-dsql-region') ?? 'us';
+
+    // ── Auth required for deletes ──────────────────────────────────
+    const apiKey = _request.headers.get('x-api-key') ?? _request.headers.get('authorization')?.replace('Bearer ', '') ?? ''
+    if (!isValidApiKey(apiKey)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders })
+    }
+
     const { id } = await params;
 
     const rows = await query<ShipmentRow>(
@@ -163,16 +196,20 @@ export async function DELETE(
     if (rows.length === 0) {
       return NextResponse.json(
         { error: 'Shipment not found' },
-        { status: 404 },
+        { status: 404, headers: corsHeaders },
       );
     }
 
-    return new NextResponse(null, { status: 204 });
+    return new NextResponse(null, { status: 204, headers: corsHeaders });
   } catch (error) {
     console.error('DELETE /api/shipments/[id] failed:', error);
     return NextResponse.json(
       { error: 'Failed to delete shipment' },
-      { status: 500 },
+      { status: 500, headers: corsHeaders },
     );
   }
+}
+
+export function OPTIONS() {
+  return new Response(null, { status: 204, headers: corsHeaders })
 }

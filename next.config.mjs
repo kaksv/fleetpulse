@@ -6,6 +6,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  webpack: (config) => {
+    config.resolve.alias = { ...(config.resolve.alias ?? {}), canvas: 'canvas' }
+    return config
+  },
 }
 
 export default nextConfig

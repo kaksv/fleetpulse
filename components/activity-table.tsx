@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
 interface Shipment {
@@ -17,6 +17,7 @@ interface Shipment {
 
 interface ActivityTableProps {
   shipments: Shipment[]
+  onDelete?: (id: string) => Promise<void>
 }
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
@@ -37,10 +38,11 @@ function timeAgo(iso: string): string {
   return `${days} day${days === 1 ? '' : 's'} ago`
 }
 
-export function ActivityTable({ shipments }: ActivityTableProps) {
+export function ActivityTable({ shipments, onDelete }: ActivityTableProps) {
   const [page, setPage] = useState(1)
   const itemsPerPage = 5
   const totalPages = Math.ceil(shipments.length / itemsPerPage) || 1
+  const colSpan = onDelete ? 6 : 5
 
   const startIdx = (page - 1) * itemsPerPage
   const paginatedShipments = shipments.slice(startIdx, startIdx + itemsPerPage)
@@ -69,12 +71,15 @@ export function ActivityTable({ shipments }: ActivityTableProps) {
               <th className="text-left py-3 px-4 font-semibold text-muted-foreground">
                 Last Updated
               </th>
+              {onDelete && (
+                <th className="w-10 text-left py-3 px-4 font-semibold text-muted-foreground" />
+              )}
             </tr>
           </thead>
           <tbody>
             {paginatedShipments.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                <td colSpan={colSpan} className="py-8 text-center text-sm text-muted-foreground">
                   No shipments found
                 </td>
               </tr>
@@ -109,6 +114,22 @@ export function ActivityTable({ shipments }: ActivityTableProps) {
                     <td className="py-4 px-4 text-muted-foreground">
                       {timeAgo(shipment.updated_at)}
                     </td>
+                    {onDelete && (
+                      <td className="py-4 px-4">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (confirm('Delete this shipment?')) {
+                              onDelete(shipment.id)
+                            }
+                          }}
+                          className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
+                          title="Delete shipment"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 )
               })
