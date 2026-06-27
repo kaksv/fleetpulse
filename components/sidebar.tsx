@@ -10,6 +10,7 @@ import {
   Package,
   BarChart3,
   Settings,
+  Users,
   Menu,
   X,
 } from 'lucide-react'
@@ -18,6 +19,7 @@ const navigation = [
   { name: 'Dashboard', icon: LayoutGrid, href: '/dashboard' },
   { name: 'Live Map', icon: Map, href: '/dashboard/live-map' },
   { name: 'Fleet Management', icon: Truck, href: '/dashboard/fleet-management' },
+  { name: 'Drivers', icon: Users, href: '/dashboard/drivers' },
   { name: 'Shipments', icon: Package, href: '/dashboard/shipments' },
   { name: 'Analytics', icon: BarChart3, href: '/dashboard/analytics' },
   { name: 'Settings', icon: Settings, href: '/dashboard/settings' },
