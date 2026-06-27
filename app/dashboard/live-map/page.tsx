@@ -1,7 +1,7 @@
-import { LiveOperations } from '@/components/live-operations'
 import { query } from '@/lib/db'
+import { LiveMapClient } from './client'
 
-interface ShipmentRow extends Record<string, unknown> {
+interface ShipmentRow {
   id: string
   driver_id: string | null
   driver_name: string | null
@@ -24,12 +24,5 @@ export default async function LiveMapPage() {
      ORDER BY s.updated_at DESC`,
   )
 
-  return (
-    <main className="flex-1 p-6 overflow-auto">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-2xl font-bold text-foreground mb-6">Live Map</h1>
-        <LiveOperations shipments={shipments} />
-      </div>
-    </main>
-  )
+  return <LiveMapClient initialShipments={shipments as Shipment[]} />
 }

@@ -5,6 +5,11 @@ import { KPICards } from '@/components/kpi-cards'
 import { LiveOperations } from '@/components/live-operations'
 import { ActivityTable } from '@/components/activity-table'
 import { useToast } from '@/components/toast'
+import dynamic from 'next/dynamic'
+
+// Leaflet touches window during module init; load only on client
+// @ts-ignore
+const FleetMap = dynamic(() => import('@/components/fleet-map').then((m) => m.FleetMap), { ssr: false })
 
 interface Shipment {
   id: string
@@ -95,7 +100,12 @@ export function DashboardClient() {
         </p>
       </div>
       <KPICards shipments={shipments} drivers={drivers} />
-      <LiveOperations shipments={shipments} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div className="lg:col-span-2">
+          <FleetMap shipments={shipments} />
+        </div>
+        <LiveOperations shipments={shipments} refetch={fetchData} />
+      </div>
       <ActivityTable shipments={shipments} onDelete={handleDelete} />
     </div>
   )

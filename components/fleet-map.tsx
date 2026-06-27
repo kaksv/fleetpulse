@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet'
 import L from 'leaflet'
+
 interface Shipment {
   id: string
   driver_id: string | null
@@ -15,22 +16,8 @@ interface Shipment {
   updated_at: string
 }
 
-// Fix Leaflet default icon for Next.js by pointing to CDN images (client-only)
-if (typeof window !== 'undefined') {
-  const DefaultIcon = L.icon({
-    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
-  })
-  L.Marker.prototype.options.icon = DefaultIcon
-}
-
 /* ------------------------------------------------------------------ */
-/*  City name → coordinate lookup for seeded demo data                  */
+/*  City coordinates for seeded demo data                              */
 /* ------------------------------------------------------------------ */
 
 const CITY_COORDS: Record<string, [number, number]> = {
@@ -53,19 +40,15 @@ function toCoord(name: string): [number, number] {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Status → color mapping                                             */
+/*  SVG pin icons (no global L.Icon.Default mutation)                  */
 /* ------------------------------------------------------------------ */
 
-const COLORS: Record<string, string> = {
+const STATUS_COLORS: Record<string, string> = {
   in_transit: '#10b981',
   delayed:    '#f59e0b',
   pending:    '#64748b',
   delivered:  '#3b82f6',
 }
-
-/* ------------------------------------------------------------------ */
-/*  Custom SVG pin icon                                                */
-/* ------------------------------------------------------------------ */
 
 function pinIcon(color: string) {
   return L.divIcon({
@@ -81,8 +64,21 @@ function pinIcon(color: string) {
   })
 }
 
+function destIcon() {
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width:14px;height:14px;border-radius:50%;
+      background:#fff;border:3px solid #3b82f6;
+      box-shadow:0 2px 4px rgba(0,0,0,0.4);
+    " />`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  })
+}
+
 /* ------------------------------------------------------------------ */
-/*  Auto-fit map to bounds                                             */
+/*  Auto-fit bounds                                                    */
 /* ------------------------------------------------------------------ */
 
 function FitBounds({ points }: { points: [number, number][] }) {
@@ -103,10 +99,6 @@ interface FleetMapProps {
 }
 
 export function FleetMap({ shipments }: FleetMapProps) {
-  const active = shipments.filter(
-    (s) => s.status === 'in_transit' || s.status === 'delayed',
-  )
-
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -114,22 +106,28 @@ export function FleetMap({ shipments }: FleetMapProps) {
   }, [])
 
   if (!mounted) {
-    return (
-      <div className="w-full h-full bg-slate-950/50 animate-pulse" />
-    )
+    return <div className="w-full h-full bg-slate-950/50 animate-pulse" />
   }
 
-  const center: [number, number] = active.length > 0
-    ? toCoord(active[0].origin)
-    : [0.3476, 32.5825]
+  const active = shipments.filter(
+    (s) => s.status === 'in_transit' || s.status === 'delayed',
+  )
 
-  const markers: [number, number][] = []
+  const polylines: [number, number][][] = []
+  const markerPoints: [number, number][] = []
+
   active.forEach((s) => {
     const o = toCoord(s.origin)
     const d = toCoord(s.destination)
-    if (o[0] !== 0 || o[1] !== 0) markers.push(o)
-    if (d[0] !== 0 || d[1] !== 0) markers.push(d)
+    if ((o[0] !== 0 || o[1] !== 0) && (d[0] !== 0 || d[1] !== 0)) {
+      polylines.push([o, d])
+      markerPoints.push(o, d)
+    }
   })
+
+  const center: [number, number] = markerPoints.length > 0
+    ? markerPoints[0]
+    : [0.3476, 32.5825]
 
   return (
     <MapContainer
@@ -143,41 +141,47 @@ export function FleetMap({ shipments }: FleetMapProps) {
         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         subdomains={['a', 'b', 'c', 'd']}
       />
-      <FitBounds points={markers} />
+      <FitBounds points={markerPoints} />
 
+      {/* Route lines */}
+      {polylines.map((line, idx) => (
+        <Polyline
+          key={`route-${idx}`}
+          positions={line}
+          pathOptions={{
+            color: '#3b82f6',
+            weight: 2,
+            opacity: 0.6,
+            dashArray: '6 6',
+          }}
+        />
+      ))}
+
+      {/* Origin markers */}
       {active.map((s) => {
         const origin = toCoord(s.origin)
         if (origin[0] === 0 && origin[1] === 0) return null
-        const c = COLORS[s.status] ?? COLORS.pending
+        const color = STATUS_COLORS[s.status] ?? STATUS_COLORS.pending
         return (
-          <Marker key={`o-${s.id}`} position={origin} icon={pinIcon(c)}>
+          <Marker key={`o-${s.id}`} position={origin} icon={pinIcon(color)}>
             <Popup>
-              <div className="text-xs space-y-1 min-w-[120px]">
-                <p className="font-semibold">📍 Origin</p>
-                <p className="text-foreground">{s.origin}</p>
-                <p className="text-muted-foreground">
-                  {s.driver_name ?? 'Unassigned'}
-                </p>
+              <div className="text-xs space-y-1 min-w-[140px]">
+                <p className="font-semibold text-foreground">🚚 {s.driver_name ?? 'Unassigned'}</p>
+                <p className="text-muted-foreground">From: {s.origin}</p>
+                <p className="text-muted-foreground">To: {s.destination}</p>
+                <p className="text-emerald-400 font-semibold">{s.progress}% complete</p>
               </div>
             </Popup>
           </Marker>
         )
       })}
 
+      {/* Destination markers */}
       {active.map((s) => {
         const dest = toCoord(s.destination)
         if (dest[0] === 0 && dest[1] === 0) return null
         return (
-          <Marker key={`d-${s.id}`} position={dest} icon={L.divIcon({
-            className: '',
-            html: `<div style="
-              width:14px;height:14px;border-radius:50%;
-              background:#fff;border:3px solid #3b82f6;
-              box-shadow:0 2px 4px rgba(0,0,0,0.4);
-            " />`,
-            iconSize: [14, 14],
-            iconAnchor: [7, 7],
-          })}>
+          <Marker key={`d-${s.id}`} position={dest} icon={destIcon()}>
             <Popup>
               <div className="text-xs space-y-1 min-w-[120px]">
                 <p className="font-semibold text-blue-500">🏁 Destination</p>

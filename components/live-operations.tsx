@@ -29,9 +29,10 @@ interface Driver {
 
 interface LiveOperationsProps {
   shipments: Shipment[]
+  refetch?: () => void
 }
 
-export function LiveOperations({ shipments }: LiveOperationsProps) {
+export function LiveOperations({ shipments, refetch }: LiveOperationsProps) {
   const [showModal, setShowModal] = useState(false)
   const [drivers, setDrivers] = useState<Driver[]>([])
 
@@ -44,7 +45,7 @@ export function LiveOperations({ shipments }: LiveOperationsProps) {
 
   const handleCreate = () => {
     setShowModal(false)
-    window.location.reload()
+    refetch?.()
   }
 
   // Only show in-transit and delayed shipments in the live feed
