@@ -15,17 +15,19 @@ interface Shipment {
   updated_at: string
 }
 
-// Fix Leaflet default icon for Next.js by pointing to CDN images
-const DefaultIcon = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-})
-L.Marker.prototype.options.icon = DefaultIcon
+// Fix Leaflet default icon for Next.js by pointing to CDN images (client-only)
+if (typeof window !== 'undefined') {
+  const DefaultIcon = L.icon({
+    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41],
+  })
+  L.Marker.prototype.options.icon = DefaultIcon
+}
 
 /* ------------------------------------------------------------------ */
 /*  City name → coordinate lookup for seeded demo data                  */
@@ -105,13 +107,13 @@ export function FleetMap({ shipments }: FleetMapProps) {
     (s) => s.status === 'in_transit' || s.status === 'delayed',
   )
 
-  const [ready, setReady] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    setReady(true)
+    setMounted(true)
   }, [])
 
-  if (!ready) {
+  if (!mounted) {
     return (
       <div className="w-full h-full bg-slate-950/50 animate-pulse" />
     )
